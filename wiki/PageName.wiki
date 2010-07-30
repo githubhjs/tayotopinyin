@@ -1,0 +1,10 @@
+#labels automake,autoheader,autoconfig
+== Some experience of the autotools( automake , autoheader and autoconfig ) ==
+
+First of all, there is a very friendly tutorial about [ http://www.seul.org/docs/autotut/ how to ] things. This tutorial is very easy to follow, however there is also some other tips you may want to know in one complex project. There are lots of problems for me when I use the autotool in the release steps. So I just want to share my experience, and in Chinese by the way.
+
+当你下载一个源码文件来进行编译安装的时候，你可能已经习惯了
+	#*./configure*#
+	#*make*
+	#*make install*
+这样的方式。这样的确是非常的方便，而所有的功劳都是一系列自动工具来完成的，你只需要为他们提供一些引导而已。
