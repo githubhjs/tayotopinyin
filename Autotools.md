@@ -1,0 +1,58 @@
+# Some experience of the autotools( automake , autoheader and autoconfig ) #
+## Sharing ##
+First of all, there is a very friendly tutorial about [http://www.seul.org/docs/autotut/ how to ](.md) things. This tutorial is very easy to follow, however there is also some other tips you may want to know in one complex project. There are lots of problems for me when I use the autotool in the release steps. So I just want to share my experience, and in Chinese by the way.
+## 言而总之 ##
+当你下载一个源码文件来进行编译安装的时候，你可能已经习惯了
+  1. **./configure**
+  1. **make**
+  1. **make install**
+这样的方式。这样的确是非常的方便，而所有的功劳都是一系列自动工具来完成的，你只需要为他们提供一些引导而已。
+
+首先在我使用过程中，脑海中一定要有一个完整的关于这些工具的一个构图。在上面给出的网址中，就有一个很清晰的结构图。整个工程需要一个configure.ac（以前是configure.in,但是后来不推荐使用），由它来带动整个工程的配置过程。比如里面可以注明生成makefile和config.in的宏，那么在配置的时候就会产生这些文件。另外一个比较重要的需要自己填写的就是Makefile.am文件，它直接知道Makefile的生成，比如编译参数，安装详细信息等等。最后由这两个文件，就能够得到整个工程的一个标准的编译安装脚本 **Makefile** 了。
+
+最最基本的步骤是：
+#在根目录下面运行 **autoscan** ,这时会生成一个叫做configure.scan的文件，它相当于就是configure.ac的蓝本，将其改名为configure.ac，然后编辑它
+#编写一个Makefile.am文件，在里面写一些规则
+#运行aclocal, autoheader, automake, autoconfig,就能够得到configure命令了
+
+## configure.ac 文件 ##
+### configure.ac ###
+第一步就是要编写自己的configure.ac文件，这里面我用到的几个宏：
+  * C\_INIT，初始化autoconf,一定要排在第一位。可以定义包名陈，版本以及错误报告的邮件地址
+  * M\_INIT\_AUTOMAKE, 标记要生成Makefile文件
+  * C\_CONFIG\_SRCDIR, 这个没有理解，我使用的是默认的
+  * C\_CONFIG\_HEADERS, 这个是非常重要的，因为它会指导生成config.in文件。这里说他非常重要，是在编写可移植的程序的时候非常有用。你自己使用了会知道，这里面其实就是一些预定义的宏，比如HAVE\_ICONV等等。它是在你configure的阶收集你的电脑上面的环境而生成的，这些宏你可以包含在你的程序内，从而编写可移植的程序。
+  * C\_ARG\_ENABLE, 这个宏可以定义一些在configure阶段的命令。比如它自己的如--prefix，你也可以定义自己的
+  * C\_CHECK\_HEADERS, 这个是用来查看必要的后文件是否存在
+  * C\_OUTPUT, 这个是指导在哪些文件夹下面生成Makefile
+基本的就是这些，其中 **AC\_INIT\_AUTOMAKE** 和 **AC\_OUTPUT** 是比较重要的。
+
+### Makefile.am ###
+然后的一步就是需要在每个文件夹下面都写一个Makefile.am文件，用来指导当前文件夹的Makefile的生成。比如在总的文件夹下面，只需要写子文件夹的名称，然后再到每个文件夹下面分别填写。
+一般的工程至少应该有两个文件夹，一个是src，另一个是data，其他的都是一样的道理。在你编写的过程中，一个重要的观念就是哪些文件需要在发布的时候包含进去，并且这些文件在用换装的时候你应该将其解压到何处。
+#### src ####
+> 首先是src文件夹。这里面一般放置的都是代码，所以需要编译才能生成目标文件。源文件的编译需要用到\_PROGRAMS宏，这个宏后面的PROGRAMS就表面用户期望这是一个程序，需要编译。前面的前缀很重要，表明了你相最后将该程序安装的位置。比如一般的程序相安装在/usr/bin目录，那么
+> `bin_PROGRAMS=execfilename1, execfilename2, ...`
+这里后面的可以是多个执行程序的名称。这里的bin可以替换成sbin，我使用的时候因为要安装到libexec目录，所以写的是libexec，但是这个在后来制作deb包的时候好像不认识，但是我找到了办法解决，呵呵。对应每个exec名称，必须要指明它所以来的源文件:
+> `execfilename1_SOURCES=main.cpp a.cpp b.cpp`
+这些源文件最后都要成为这个目标文件的依赖文件，所以要写齐全。我在使用的时候一个细节是我的目标文件名是 **ibus-engine-tayoto** ，但是在写他的依赖文件时要
+> `ibus_engine_tayot_SOURCES=...`
+不然会出现神奇的错误。然后每个目标文件编译的FLAG和LIB。
+  * `execfilename1_CXXFLAGS=-I/usr/include ...`
+  * `execfilename1_LDFLAGS=-L...`
+取决于你自己的程序。
+
+这里一个我以前都不知道的细节是在CXXFLAGS中，可以用-D参数来给程序传递一个宏。比如-DICON\_DIR=/usr/share/icons,那么这个宏就能够在你的程序里面使用，代表你的图标的路径。这个在我的程序里面非常有用，因为这些数据库或者图标文件最开始我是不指导安装到哪儿的。用户在configure的时候可以指定prefix的位置，而它将决定这些图标或者数据库的安装位置。这时可能就需要用这种宏的方式提供给程序，以便程序使用。在这个am文件中，一些隐含的目录你可能需要知道，比如 _pkgdatadir_,_pkglibdir_, 等等。这些在你configure的时候当你使用了prefix之后就确定了，所以能够适时的传递给你的程序。
+
+这里的SOURCES不用指定头文件，但是这样的话在最后的发布中，将不包含头文件而导致错误，所以建议将头文件一并写上。另外两个宏可能常用的是
+  * EXTRA\_DATA=test.xml`
+  * CLEANFILES=test.xml`
+第一个表示一些文件需要在打包发布的时候被包含进去，第二个就是希望在make clean的时候要清除的额外的文件。
+#### data ####
+这个文件通常是数据文件，不需要编译生么的，只需要将其解压到特定的位置。举例吧，其实很简单，我觉得
+  * icondir=/usr/share/icons`
+  * icon\_DATA=chinese.svg home.svg setup.svg`
+只需要这样，就能够在make install的时候将其安装到icondir文件夹了。这里的icon可以替换成其他的任意，只是一个标示而已。一个细节是这些DATA文件不会再发布的时候被包含进去，所以还需要使用EXTRA\_DATA宏来包含他们。
+
+## 总而言之 ##
+如果你是摸索，可能这一系列工具都非常的难懂，因为一般的教程只是适用于helloworld程序，而对于真实的程序就不适用了。我用了大概一天的时间研读了别的工程的这些文件，然后经过自己的实践，总结出来的经验吧，希望对一些要涉及到的人有所帮助。
